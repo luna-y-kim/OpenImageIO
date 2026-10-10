@@ -333,6 +333,11 @@ public:
     void set_thumbnail(const ImageBuf& thumb, DoLock do_lock = DoLock(true));
     std::shared_ptr<ImageBuf> get_thumbnail(DoLock do_lock = DoLock(true)) const;
 
+    // Count and return the MIP levels of the current subimage by iterating with
+    // spec_dimensions() (0 on failure). It also stores the count in
+    // "oiio:miplevels" if it was 0 (MIP-mapped, count unknown).
+    int count_nmiplevels(DoLock do_lock = DoLock(true));
+
 private:
     ImageBuf::IBStorage m_storage
         = ImageBuf::UNINITIALIZED;  // Pixel storage class
@@ -565,6 +570,8 @@ ImageBufImpl::ImageBufImpl(const ImageBufImpl& src)
         m_nmiplevels       = 0;
         m_spec.erase_attribute("oiio:subimages");
         m_nativespec.erase_attribute("oiio:subimages");
+        m_spec.erase_attribute("oiio:miplevels");
+        m_nativespec.erase_attribute("oiio:miplevels");
         m_pixels_read = true;
     }
     if (src.m_configspec)
@@ -870,6 +877,7 @@ ImageBufImpl::clear()
     m_name.clear();
     m_fileformat.clear();
     m_nsubimages       = 0;
+    m_nmiplevels       = 0;
     m_current_subimage = -1;
     m_current_miplevel = -1;
     m_spec             = ImageSpec();
@@ -2107,9 +2115,53 @@ ImageBuf::miplevel() const
 
 
 int
+ImageBufImpl::count_nmiplevels(DoLock do_lock)
+{
+    lock_t lock(m_mutex, std::defer_lock_t());
+    if (do_lock)
+        lock.lock();
+    if (!validate_spec(DoLock(false) /* we already hold the lock */)) {
+        return 0;
+    }
+
+    auto input = ImageInput::open(m_name.string(), m_configspec.get(),
+                                  m_rioproxy);
+    if (!input) {
+        error("Could not open file: {}", OIIO::geterror());
+        return 0;
+    }
+
+    // Count until spec_dimensions() returns a spec whose format is unknown.
+    int nmip = 0;
+    while (input->spec_dimensions(m_current_subimage, nmip).format
+           != TypeUnknown) {
+        ++nmip;
+    }
+
+    // Update the spec attribute "oiio:miplevels" only if it was already set to
+    // 0 explicitly, which means it is confirmed MIP-mapped but the count is not
+    // known yet.
+    if (nmip >= 1 && m_spec.get_int_attribute("oiio:miplevels", 1) == 0) {
+        m_spec.attribute("oiio:miplevels", nmip);
+    }
+    return nmip;
+}
+
+
+int
 ImageBuf::nmiplevels() const
 {
-    m_impl->validate_spec();
+    if (!m_impl->validate_spec())
+        return 0;
+
+    if (m_impl->m_nmiplevels == 0) {
+        m_impl->m_nmiplevels = m_impl->m_spec.get_int_attribute(
+            "oiio:miplevels", 1);
+
+        // This is the case where "oiio:miplevels" is explicitly set to 0.
+        if (m_impl->m_nmiplevels == 0)
+            m_impl->m_nmiplevels = m_impl->count_nmiplevels();
+    }
     return m_impl->m_nmiplevels;
 }
 
@@ -2392,6 +2444,8 @@ ImageBuf::copy_pixels(const ImageBuf& src)
     m_impl->m_nmiplevels       = 0;
     m_impl->m_spec.erase_attribute("oiio:subimages");
     m_impl->m_nativespec.erase_attribute("oiio:subimages");
+    m_impl->m_spec.erase_attribute("oiio:miplevels");
+    m_impl->m_nativespec.erase_attribute("oiio:miplevels");
 
     return ok;
 }

@@ -1483,6 +1483,11 @@ TIFFInput::readspec(bool read_meta)
             m_spec.channelnames[c] = "z";
     }
 
+    // Set miplevels attribute to 0 if mipmap emulation is true. At this point,
+    // we only know it is mipmapped, but not the number of miplevels.
+    if (m_emulate_mipmap)
+        m_spec.attribute("oiio:miplevels", 0);
+
     /// read color profile
     unsigned int icc_datasize = 0;
     uint8_t* icc_buf          = NULL;

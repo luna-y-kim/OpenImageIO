@@ -175,6 +175,15 @@ OpenImageIO understands.
 ```
 
 ```{eval-rst}
+.. option:: "oiio:miplevels" : int
+
+    The number of MIP levels of the subimage, only present for MIP-mapped
+    files. A value of 0 indicates that the image is MIP-mapped, but the
+    number of MIP levels cannot be known easily without repeatedly seeking
+    to MIP levels to find out how many there are.
+```
+
+```{eval-rst}
 .. option:: "oiio:SourcePath" : string
             "oiio:SourceFileFormat" : string
 

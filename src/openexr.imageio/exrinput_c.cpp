@@ -599,8 +599,10 @@ OpenEXRCoreInput::PartInfo::parse_header(OpenEXRCoreInput* in,
     spec.deep = (storage == EXR_STORAGE_DEEP_TILED
                  || storage == EXR_STORAGE_DEEP_SCANLINE);
 
-    if (levelmode != EXR_TILE_ONE_LEVEL)
+    if (levelmode != EXR_TILE_ONE_LEVEL) {
         spec.attribute("openexr:roundingmode", (int)roundingmode);
+        spec.attribute("oiio:miplevels", nmiplevels);
+    }
 
     exr_envmap_t envmap;
     rv = exr_attr_get_envmap(ctxt, subimage, "envmap", &envmap);

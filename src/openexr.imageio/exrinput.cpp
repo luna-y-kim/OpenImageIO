@@ -422,8 +422,10 @@ OpenEXRInput::PartInfo::parse_header(OpenEXRInput* in,
 
     spec.deep = Strutil::istarts_with(header->type(), "deep");
 
-    if (levelmode != Imf::ONE_LEVEL)
+    if (levelmode != Imf::ONE_LEVEL) {
         spec.attribute("openexr:roundingmode", roundingmode);
+        spec.attribute("oiio:miplevels", nmiplevels);
+    }
 
     const Imf::EnvmapAttribute* envmap;
     envmap = header->findTypedAttribute<Imf::EnvmapAttribute>("envmap");
